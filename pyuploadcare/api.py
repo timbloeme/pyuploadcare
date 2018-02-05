@@ -144,6 +144,8 @@ def rest_request(verb, path, data=None, timeout=conf.DEFAULT,
                                        verify=conf.verify_api_ssl,
                                        headers=headers, data=content,
                                        timeout=_get_timeout(timeout))
+        except ConnectionResetError as error:
+            response = retry_get(verb, url, headers, content, timeout)
         except requests.RequestException as exc:
             raise APIConnectionError(exc.args[0])
 
@@ -195,6 +197,20 @@ def rest_request(verb, path, data=None, timeout=conf.DEFAULT,
                 continue
             else:
                 raise
+
+def retry_get(verb, url, headers,content, timeout, tries=0):
+    try:
+        return session.request(verb, url, allow_redirects=True,
+                                   verify=conf.verify_api_ssl,
+                                   headers=headers, data=content,
+                                   timeout=_get_timeout(timeout))
+    except ConnectionResetError as error:
+        if tries < conf.max_tries:
+            retry_get(verb, url, headers, content, timeout, tries+1)
+        else:
+            raise APIConnectionError(error.args[0])            
+    except requests.RequestException as exc:
+        raise APIConnectionError(exc.args[0])
 
 
 def uploading_request(verb, path, data=None, files=None, timeout=conf.DEFAULT):
